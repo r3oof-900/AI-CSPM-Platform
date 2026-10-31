@@ -125,21 +125,29 @@ resource "aws_iam_role" "eks_payment_kms_role" {
 # ==============================================================================
 # 4. Overprivileged IAM Policy (The Research Gap Flaw: Resource = "*")
 # ==============================================================================
-resource "aws_iam_policy" "overprivileged_kms_policy" {
-  name        = "OverprivilegedPaymentKmsPolicy"
-  description = "Flawed policy granting wildcard KMS Decrypt across all keys instead of least-privilege target key"
+resource "aws_iam_policy" "scoped_payment_kms_policy" {
+  name        = "ScopedPaymentKmsPolicy"
+  description = "Remediated by AI-CSPM: Strictly scoped to payment CMK ARN with S3 EncryptionContext constraint"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "OverprivilegedWildcardKmsDecrypt"
+        Sid    = "ScopedPaymentKeyDecryptionOnly"
         Effect = "Allow"
         Action = [
           "kms:Decrypt",
           "kms:DescribeKey"
         ]
-        Resource = "*"
+        # REMEDIATED: Replaced '*' with explicit Customer Managed Key ARN
+        Resource = aws_kms_key.payment_key.arn
+        
+        # REMEDIATED: Cryptographic binding to authorized S3 payment vault
+        Condition = {
+          StringEquals = {
+            "kms:EncryptionContext:aws:s3:arn": aws_s3_bucket.payment_vault.arn
+          }
+        }
       }
     ]
   })
