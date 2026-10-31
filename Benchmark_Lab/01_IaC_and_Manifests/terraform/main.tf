@@ -125,25 +125,8 @@ resource "aws_iam_role" "eks_payment_kms_role" {
 # ==============================================================================
 # 4. Overprivileged IAM Policy (The Research Gap Flaw: Resource = "*")
 # ==============================================================================
-resource "aws_iam_policy" "overprivileged_kms_policy" {
-  name        = "OverprivilegedPaymentKmsPolicy"
-  description = "Flawed policy granting wildcard KMS Decrypt across all keys instead of least-privilege target key"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "OverprivilegedWildcardKmsDecrypt"
-        Effect = "Allow"
-        Action = [
-          "kms:Decrypt",
-          "kms:DescribeKey"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
+# AI-CSPM Scoped Remediation
+resource "aws_iam_policy" "scoped_payment_kms_policy" {}
 
 resource "aws_iam_role_policy_attachment" "attach_overprivileged_kms" {
   role       = aws_iam_role.eks_payment_kms_role.name
