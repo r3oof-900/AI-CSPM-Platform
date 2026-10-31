@@ -1,0 +1,20 @@
+policies:
+  - name: iam-detect-overprivileged-kms-role
+    resource: aws.iam-role
+    description: "Detect IAM roles with kms:Decrypt permissions"
+    filters:
+      - type: check-permissions
+        match: allowed
+        actions:
+          - "kms:Decrypt"
+    actions:
+      - type: notify
+        template: default
+        priority_header: 1
+        subject: "[Cloud Custodian] Overprivileged KMS Role Detected"
+
+  - name: kms-detect-sensitive-payment-keys
+    resource: aws.kms
+    description: "Detect financial payment KMS CMK keys requiring restricted policies"
+    filters:
+      - "tag:Compliance": "pci-dss"

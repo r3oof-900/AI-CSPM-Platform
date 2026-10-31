@@ -1,0 +1,75 @@
+# ==========================================
+# AI-CSPM Platform: Git Ignore Rules
+# Uploading the Tool & Dashboard ONLY
+# ==========================================
+
+# 1. Credentials & Sensitive Secrets (NEVER COMMIT)
+*.pem
+*.key
+*.id_rsa
+*.env
+*.env.local
+
+# 2. Node & Frontend Build Artifacts
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.vite/
+**/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 3. Python Cache & Virtual Environments
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.venv
+venv/
+env/
+.pytest_cache/
+
+# 4. Terraform State & Machine Cache
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# 5. Heavy Research Benchmarks, Evidences & Archives
+*.zip
+*.tar.gz
+*.pcap
+Benchmark_Lab_Arabic/
+Benchmark_Lab/02_Tool_Execution_Scripts/
+Benchmark_Lab/03_Benchmark_Evidence_Results/
+Benchmark_Lab/04_Evidence_Gallery/
+Benchmark_Lab/*.py
+Benchmark_Lab/*.html
+All_Report_Images/
+AWS IAM/
+Checkov/
+Cloud_Custodian/
+Trivy/
+Prowler - The Handy Cloud Security Tool_files/
+*صور_التقارير*/
+*تقرير*/
+
+# 6. Word Reports, Thesis PDFs, Raw Scripts & Screenshots
+*.pdf
+*.docx
+*.xlsx
+*.png
+*.jpg
+*.jpeg
+generate_*.py
+convert_docx_to_pdf.ps1
+pdf_extracted_text.txt
+
+# 7. OS & Editor Metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

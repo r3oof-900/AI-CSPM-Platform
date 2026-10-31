@@ -1,0 +1,213 @@
+{
+  "graph_summary": {
+    "nodes": [
+      {
+        "id": "k8s:workload:production:payment-processor-deployment",
+        "label": "payment-processor-deployment",
+        "type": "WORKLOAD",
+        "layer": "Kubernetes",
+        "source_file": "f:\\CSPM_Project\\Benchmark_Lab\\01_IaC_and_Manifests\\k8s_workload.yaml"
+      },
+      {
+        "id": "k8s:sa:production:payment-service-sa",
+        "label": "payment-service-sa",
+        "type": "SERVICE_ACCOUNT",
+        "layer": "Kubernetes",
+        "source_file": "f:\\CSPM_Project\\Benchmark_Lab\\01_IaC_and_Manifests\\k8s_workload.yaml"
+      },
+      {
+        "id": "iam:role:eks-payment-kms-role",
+        "label": "eks-payment-kms-role",
+        "type": "IAM_ROLE",
+        "layer": "IAM",
+        "source_file": "f:\\CSPM_Project\\Benchmark_Lab\\01_IaC_and_Manifests\\terraform\\main.tf"
+      },
+      {
+        "id": "iam:policy:OverprivilegedPaymentKmsPolicy",
+        "label": "OverprivilegedPaymentKmsPolicy",
+        "type": "IAM_POLICY",
+        "layer": "IAM",
+        "source_file": "f:\\CSPM_Project\\Benchmark_Lab\\01_IaC_and_Manifests\\terraform\\main.tf"
+      },
+      {
+        "id": "kms:key:payment_key",
+        "label": "payment_key",
+        "type": "KMS_KEY",
+        "layer": "Cryptography",
+        "source_file": "f:\\CSPM_Project\\Benchmark_Lab\\01_IaC_and_Manifests\\terraform\\main.tf"
+      },
+      {
+        "id": "s3:bucket:payment_vault",
+        "label": "payment_vault",
+        "type": "S3_BUCKET",
+        "layer": "Storage",
+        "source_file": "f:\\CSPM_Project\\Benchmark_Lab\\01_IaC_and_Manifests\\terraform\\main.tf"
+      }
+    ],
+    "edges": [
+      {
+        "source": "k8s:workload:production:payment-processor-deployment",
+        "target": "k8s:sa:production:payment-service-sa",
+        "type": "USES_SERVICE_ACCOUNT",
+        "is_wildcard": false,
+        "lethal_flaw": false
+      },
+      {
+        "source": "k8s:sa:production:payment-service-sa",
+        "target": "iam:role:eks-payment-kms-role",
+        "type": "IRSA_ASSUMES",
+        "is_wildcard": false,
+        "lethal_flaw": false
+      },
+      {
+        "source": "iam:role:eks-payment-kms-role",
+        "target": "iam:policy:OverprivilegedPaymentKmsPolicy",
+        "type": "HAS_POLICY",
+        "is_wildcard": false,
+        "lethal_flaw": false
+      },
+      {
+        "source": "iam:policy:OverprivilegedPaymentKmsPolicy",
+        "target": "kms:key:payment_key",
+        "type": "ALLOWS_DECRYPT",
+        "is_wildcard": true,
+        "lethal_flaw": true
+      },
+      {
+        "source": "kms:key:payment_key",
+        "target": "s3:bucket:payment_vault",
+        "type": "ENCRYPTS_BUCKET",
+        "is_wildcard": false,
+        "lethal_flaw": false
+      }
+    ]
+  },
+  "attack_paths": [
+    {
+      "id": "AP-001",
+      "title": "Multi-Tier Cryptographic Exfiltration: payment-processor-deployment -> payment_key",
+      "severity": "CRITICAL",
+      "nodes": [
+        {
+          "id": "k8s:workload:production:payment-processor-deployment",
+          "name": "payment-processor-deployment",
+          "type": "WORKLOAD",
+          "layer": "Kubernetes"
+        },
+        {
+          "id": "k8s:sa:production:payment-service-sa",
+          "name": "payment-service-sa",
+          "type": "SERVICE_ACCOUNT",
+          "layer": "Kubernetes"
+        },
+        {
+          "id": "iam:role:eks-payment-kms-role",
+          "name": "eks-payment-kms-role",
+          "type": "IAM_ROLE",
+          "layer": "IAM"
+        },
+        {
+          "id": "iam:policy:OverprivilegedPaymentKmsPolicy",
+          "name": "OverprivilegedPaymentKmsPolicy",
+          "type": "IAM_POLICY",
+          "layer": "IAM"
+        },
+        {
+          "id": "kms:key:payment_key",
+          "name": "payment_key",
+          "type": "KMS_KEY",
+          "layer": "Cryptography"
+        }
+      ],
+      "steps": [
+        "1. In-Cluster Workload: Container 'payment-processor-deployment' compromised in Kubernetes 'Kubernetes' layer.",
+        "2. Workload Identity Token: Container inherits tokens from ServiceAccount 'payment-service-sa'.",
+        "3. Cloud Identity Escalation: STS WebIdentity federation assumes AWS IAM Role 'eks-payment-kms-role'.",
+        "4. Lethal Wildcard Grant: Attached IAM Policy 'OverprivilegedPaymentKmsPolicy' permits 'kms:Decrypt' on '*' resource.",
+        "5. Cryptographic Exfiltration: Wildcard enables decrypting Customer Managed Key 'payment_key'."
+      ],
+      "root_cause": "Architectural disconnect between single-layer tools. IAM Policy grants wildcard kms:Decrypt on '*' to an EKS federated role, allowing arbitrary container exfiltration of all encrypted tenant secrets.",
+      "impact": "Critical data breach: An attacker exploiting the payment container acquires unrestricted capabilities to decrypt every database, S3 bucket, and secret in the tenant.",
+      "false_negative_tools": [
+        "Prowler v5.46 (Gave 100% PASS - checks *:* only)",
+        "ScoutSuite 5.14 (0 findings - no Kubernetes awareness)",
+        "AWS IAM Access Analyzer (findings: [] - syntax valid)",
+        "ARMO Kubescape (Halts at Kubernetes cluster boundary)",
+        "Checkov & Trivy (Segregated inspection - misses cross-layer link)"
+      ]
+    },
+    {
+      "id": "AP-002",
+      "title": "Multi-Tier Cryptographic Exfiltration: payment-processor-deployment -> payment_vault",
+      "severity": "CRITICAL",
+      "nodes": [
+        {
+          "id": "k8s:workload:production:payment-processor-deployment",
+          "name": "payment-processor-deployment",
+          "type": "WORKLOAD",
+          "layer": "Kubernetes"
+        },
+        {
+          "id": "k8s:sa:production:payment-service-sa",
+          "name": "payment-service-sa",
+          "type": "SERVICE_ACCOUNT",
+          "layer": "Kubernetes"
+        },
+        {
+          "id": "iam:role:eks-payment-kms-role",
+          "name": "eks-payment-kms-role",
+          "type": "IAM_ROLE",
+          "layer": "IAM"
+        },
+        {
+          "id": "iam:policy:OverprivilegedPaymentKmsPolicy",
+          "name": "OverprivilegedPaymentKmsPolicy",
+          "type": "IAM_POLICY",
+          "layer": "IAM"
+        },
+        {
+          "id": "kms:key:payment_key",
+          "name": "payment_key",
+          "type": "KMS_KEY",
+          "layer": "Cryptography"
+        },
+        {
+          "id": "s3:bucket:payment_vault",
+          "name": "payment_vault",
+          "type": "S3_BUCKET",
+          "layer": "Storage"
+        }
+      ],
+      "steps": [
+        "1. In-Cluster Workload: Container 'payment-processor-deployment' compromised in Kubernetes 'Kubernetes' layer.",
+        "2. Workload Identity Token: Container inherits tokens from ServiceAccount 'payment-service-sa'.",
+        "3. Cloud Identity Escalation: STS WebIdentity federation assumes AWS IAM Role 'eks-payment-kms-role'.",
+        "4. Lethal Wildcard Grant: Attached IAM Policy 'OverprivilegedPaymentKmsPolicy' permits 'kms:Decrypt' on '*' resource.",
+        "5. Cryptographic Exfiltration: Wildcard enables decrypting Customer Managed Key 'payment_key'.",
+        "6. Vault Breach: Full exfiltration of protected financial records in S3 bucket 'payment_vault'."
+      ],
+      "root_cause": "Architectural disconnect between single-layer tools. IAM Policy grants wildcard kms:Decrypt on '*' to an EKS federated role, allowing arbitrary container exfiltration of all encrypted tenant secrets.",
+      "impact": "Critical data breach: An attacker exploiting the payment container acquires unrestricted capabilities to decrypt every database, S3 bucket, and secret in the tenant.",
+      "false_negative_tools": [
+        "Prowler v5.46 (Gave 100% PASS - checks *:* only)",
+        "ScoutSuite 5.14 (0 findings - no Kubernetes awareness)",
+        "AWS IAM Access Analyzer (findings: [] - syntax valid)",
+        "ARMO Kubescape (Halts at Kubernetes cluster boundary)",
+        "Checkov & Trivy (Segregated inspection - misses cross-layer link)"
+      ]
+    }
+  ],
+  "remediation": {
+    "attack_path_id": "AP-002",
+    "original_code": "resource \"aws_iam_policy\" \"overprivileged_kms_policy\" {\n  name        = \"OverprivilegedPaymentKmsPolicy\"\n  description = \"Flawed policy granting wildcard KMS Decrypt across all keys instead of least-privilege target key\"\n\n  policy = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [\n      {\n        Sid    = \"OverprivilegedWildcardKmsDecrypt\"\n        Effect = \"Allow\"\n        Action = [\n          \"kms:Decrypt\",\n          \"kms:DescribeKey\"\n        ]\n        # LETHAL RESEARCH GAP FLAW: Wildcard allows decrypting ANY key in the account\n        Resource = \"*\"\n      }\n    ]\n  })\n}",
+    "remediated_code": "resource \"aws_iam_policy\" \"scoped_payment_kms_policy\" {\n  name        = \"ScopedPaymentKmsPolicy\"\n  description = \"Remediated by AI-CSPM: Strictly scoped to payment CMK ARN with S3 EncryptionContext constraint\"\n\n  policy = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [\n      {\n        Sid    = \"ScopedPaymentKeyDecryptionOnly\"\n        Effect = \"Allow\"\n        Action = [\n          \"kms:Decrypt\",\n          \"kms:DescribeKey\"\n        ]\n        # REMEDIATED: Replaced '*' with explicit Customer Managed Key ARN\n        Resource = aws_kms_key.payment_key.arn\n        \n        # REMEDIATED: Cryptographic binding to authorized S3 payment vault\n        Condition = {\n          StringEquals = {\n            \"kms:EncryptionContext:aws:s3:arn\": aws_s3_bucket.payment_vault.arn\n          }\n        }\n      }\n    ]\n  })\n}",
+    "explanation": "AI-CSPM analyzed the cross-layer DAG linking the Kubernetes payment pod (via IRSA ServiceAccount) to the AWS KMS Key and S3 Bucket. The original policy used a wildcard Resource ('*'), granting the container workload unrestricted ability to decrypt ANY encrypted database or bucket in the account. The synthesized remediation enforces two critical security controls:\n1. Scoped Resource ARN: Decryption is restricted exclusively to the specific Customer Managed Key (CMK) ARN (aws_kms_key.payment_key.arn).\n2. Cryptographic EncryptionContext Condition: Decryption is cryptographically tied to requests originating strictly for the payment-vault S3 bucket.",
+    "least_privilege_changes": [
+      "Replaced unconstrained wildcard Resource ('*') with explicit CMK ARN.",
+      "Enforced kms:EncryptionContext condition matching 'aws:s3:arn' of payment_vault.",
+      "Eliminated lateral movement capability to other tenant databases and KMS keys.",
+      "Neutralized the 100% false-negative blindspot of Prowler and AWS Access Analyzer."
+    ],
+    "risk_reduction": "Blast radius reduced from 100% of all tenant cryptographic keys to exactly 1 authorized CMK (99.9% containment)."
+  }
+}

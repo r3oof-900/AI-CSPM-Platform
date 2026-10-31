@@ -1,0 +1,9 @@
+# AI-CSPM Engine Core Dependencies
+pydantic>=2.0.0
+networkx>=3.0.0
+python-hcl2>=4.3.0
+pyyaml>=6.0.0
+boto3>=1.34.0
+rich>=13.0.0
+streamlit>=1.30.0
+requests>=2.31.0
