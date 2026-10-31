@@ -23,6 +23,8 @@ from core.analyzer import AttackPathAnalyzer
 from ingestion.k8s_parser import K8sParser
 from ingestion.tf_parser import TerraformParser
 from ai.engine import AIRemediationEngine
+from ai.github_ops import GitHubPRManager
+from ai.copilot import AICopilotEngine
 
 app = FastAPI(title="AI-CSPM Backend API", version="1.0.0")
 
@@ -126,6 +128,46 @@ async def upload_and_scan(files: List[UploadFile] = File(...)):
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+
+class CopilotRequest(BaseModel):
+    query: str
+    target_dir: Optional[str] = None
+
+class PRRequest(BaseModel):
+    remediated_hcl: str
+    attack_path_id: str = "AP-001"
+    explanation: str = ""
+
+@app.post("/api/create-pr")
+def create_pr_endpoint(req: PRRequest):
+    """Triggers real automated GitHub branch creation and opens Pull Request."""
+    try:
+        pr_mgr = GitHubPRManager()
+        result = pr_mgr.create_remediation_pull_request(
+            remediated_hcl=req.remediated_hcl,
+            attack_path_id=req.attack_path_id,
+            explanation=req.explanation
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create GitHub PR: {str(e)}")
+
+@app.post("/api/copilot")
+def copilot_endpoint(req: CopilotRequest):
+    """Answers security questions grounded in the Contextual DAG."""
+    target = req.target_dir or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "Benchmark_Lab",
+        "01_IaC_and_Manifests"
+    )
+    scan_res = execute_scan(target)
+    copilot = AICopilotEngine()
+    ans = copilot.answer_query(
+        user_query=req.query,
+        attack_paths=scan_res.get("attack_paths", []),
+        graph_summary=scan_res.get("graph_summary", {})
+    )
+    return ans
 
 if __name__ == "__main__":
     import uvicorn
